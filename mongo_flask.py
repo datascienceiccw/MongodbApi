@@ -19,6 +19,10 @@ mongo = PyMongo(app)
 # Define the collection name
 cdi_collection = mongo.db.cdi
 
+@app.route('/')
+def home():
+    return jsonify({'First_message': 'Hello World'})
+
 # Authentication route to generate JWT token
 @app.route('/get_token', methods=['POST'])
 def get_token():
