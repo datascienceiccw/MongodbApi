@@ -7,21 +7,26 @@ from functools import wraps
 
 
 app = Flask(__name__)
-app.config['MONGO_URI'] = "mongodb+srv://arohan:IccwHydroinformatics12345@nallampatti.f2fnmdo.mongodb.net/nallampatti?retryWrites=true&w=majority&appName=Nallampatti"
+
+mongo_uris = {
+    'CDI': "mongodb+srv://arohan:IccwHydroinformatics12345@nallampatti.f2fnmdo.mongodb.net/CDI?retryWrites=true&w=majority&appName=Nallampatti",
+    'Nallampatti': "mongodb+srv://arohan:IccwHydroinformatics12345@nallampatti.f2fnmdo.mongodb.net/nallampatti?retryWrites=true&w=majority&appName=Nallampatti"
+}
 
 SECRET_KEY = 'your_secret_key_here'
 
 app.config['SECRET_KEY'] = SECRET_KEY
 
+# Create separate PyMongo instances for each database
+mongo_clients = {db_name: PyMongo(app, uri=mongo_uri) for db_name, mongo_uri in mongo_uris.items()}
 
-mongo = PyMongo(app)
-
-# Define the collection name
-nallampatti_collection = mongo.db.livedata
+# Define collections for each database
+cdi_collection = mongo_clients['CDI'].db.cdi
+nallampatti_collection = mongo_clients['Nallampatti'].db.livedata
 
 @app.route('/')
 def home():
-    return jsonify({'First_message': 'Nallampatti data'})
+    return jsonify({'First_message': 'Hello World'})
 
 # Authentication route to generate JWT token
 @app.route('/get_token', methods=['POST'])
@@ -61,16 +66,66 @@ def token_required(f):
 
 
 
+@app.route("/cdi_data", methods=['POST'])
+@token_required
+def add_cdi_data():
+    data = request.json  # Use request.json directly to get JSON data
+    cdi_collection.insert_one(data)
+    return jsonify({"message": "Data added successfully"}), 201
+
+@app.route("/cdi_data", methods=['GET'])
+@token_required
+def get_cdi_items():
+    display_item = []
+    for data in cdi_collection.find():
+        # Convert ObjectId to string for JSON serialization
+        data['_id'] = str(data['_id'])
+        display_item.append(data)  
+    return jsonify(display_item)
+
+@app.route("/cdi_data/<string:id>", methods=['GET'])  # Changed int to string for ObjectId
+@token_required
+def get_cdi_item(id):
+    try:
+        data = cdi_collection.find_one({"_id": ObjectId(id)})  # Convert id to ObjectId
+        data['_id'] = str(data['_id'])
+        if data:
+            return jsonify(data)
+        else:
+            return jsonify({"message": "Data not found"}), 404
+    except:
+        return jsonify({"message": "Invalid ID format"}), 400
+
+@app.route("/cdi_data/<string:id>", methods=['PUT'])
+@token_required
+def update_cdi_item(id):
+    data = request.json
+    result = cdi_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
+    if result.modified_count > 0:
+        return jsonify({"message": "Item updated successfully"})
+    else:
+        return jsonify({"message": "No item found to update"}), 404
+
+@app.route("/cdi_data/<string:id>", methods=['DELETE'])
+@token_required
+def delete_cdi_item(id):
+    result = cdi_collection.delete_one({"_id": ObjectId(id)})
+    if result.deleted_count > 0:
+        return jsonify({"message": "Item deleted successfully"})
+    else:
+        return jsonify({"message": "No item found to delete"}), 404
+    
+
 @app.route("/nallampatti_data", methods=['POST'])
 @token_required
-def add_data():
+def add_nallampatti_data():
     data = request.json  # Use request.json directly to get JSON data
     nallampatti_collection.insert_one(data)
     return jsonify({"message": "Data added successfully"}), 201
 
 @app.route("/nallampatti_data", methods=['GET'])
 @token_required
-def get_items():
+def get_nallampatti_items():
     display_item = []
     for data in nallampatti_collection.find():
         # Convert ObjectId to string for JSON serialization
@@ -80,7 +135,7 @@ def get_items():
 
 @app.route("/nallampatti_data/<string:id>", methods=['GET'])  # Changed int to string for ObjectId
 @token_required
-def get_item(id):
+def get_nallampatti_item(id):
     try:
         data = nallampatti_collection.find_one({"_id": ObjectId(id)})  # Convert id to ObjectId
         data['_id'] = str(data['_id'])
@@ -93,7 +148,7 @@ def get_item(id):
 
 @app.route("/nallampatti_data/<string:id>", methods=['PUT'])
 @token_required
-def update_item(id):
+def update_nallampatti_item(id):
     data = request.json
     result = nallampatti_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
     if result.modified_count > 0:
@@ -103,12 +158,12 @@ def update_item(id):
 
 @app.route("/nallampatti_data/<string:id>", methods=['DELETE'])
 @token_required
-def delete_item(id):
+def delete_nallampatti_item(id):
     result = nallampatti_collection.delete_one({"_id": ObjectId(id)})
     if result.deleted_count > 0:
         return jsonify({"message": "Item deleted successfully"})
     else:
-        return jsonify({"message": "No item found to delete"}), 404
+        return jsonify({"message": "No item found to delete"}), 404    
 
 if __name__ == '__main__':
     app.run(debug=True)
