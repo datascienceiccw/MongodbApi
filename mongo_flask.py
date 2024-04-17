@@ -23,6 +23,7 @@ mongo_clients = {db_name: PyMongo(app, uri=mongo_uri) for db_name, mongo_uri in 
 # Define collections for each database
 cdi_collection = mongo_clients['CDI'].db.cdi
 nallampatti_collection = mongo_clients['Nallampatti'].db.livedata
+amudala_collection = mongo_clients['CDI'].db.amudala
 
 @app.route('/')
 def home():
@@ -163,7 +164,57 @@ def delete_nallampatti_item(id):
     if result.deleted_count > 0:
         return jsonify({"message": "Item deleted successfully"})
     else:
-        return jsonify({"message": "No item found to delete"}), 404    
+        return jsonify({"message": "No item found to delete"}), 404  
+
+
+@app.route("/amudala_data", methods=['POST'])
+@token_required
+def add_amudala_data():
+    data = request.json  # Use request.json directly to get JSON data
+    amudala_collection.insert_one(data)
+    return jsonify({"message": "Data added successfully"}), 201
+
+@app.route("/amudala_data", methods=['GET'])
+@token_required
+def get_amudala_items():
+    display_item = []
+    for data in amudala_collection.find():
+        # Convert ObjectId to string for JSON serialization
+        data['_id'] = str(data['_id'])
+        display_item.append(data)  
+    return jsonify(display_item)
+
+@app.route("/amudala_data/<string:id>", methods=['GET'])  # Changed int to string for ObjectId
+@token_required
+def get_amudala_item(id):
+    try:
+        data = amudala_collection.find_one({"_id": ObjectId(id)})  # Convert id to ObjectId
+        data['_id'] = str(data['_id'])
+        if data:
+            return jsonify(data)
+        else:
+            return jsonify({"message": "Data not found"}), 404
+    except:
+        return jsonify({"message": "Invalid ID format"}), 400
+
+@app.route("/amudala_data/<string:id>", methods=['PUT'])
+@token_required
+def update_amudala_item(id):
+    data = request.json
+    result = amudala_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
+    if result.modified_count > 0:
+        return jsonify({"message": "Item updated successfully"})
+    else:
+        return jsonify({"message": "No item found to update"}), 404
+
+@app.route("/amudala_data/<string:id>", methods=['DELETE'])
+@token_required
+def delete_amudala_item(id):
+    result = amudala_collection.delete_one({"_id": ObjectId(id)})
+    if result.deleted_count > 0:
+        return jsonify({"message": "Item deleted successfully"})
+    else:
+        return jsonify({"message": "No item found to delete"}), 404      
 
 if __name__ == '__main__':
     app.run(debug=True)
